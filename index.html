@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>New3DSシミュレーション</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #ddd;
+      margin: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    button {
+      margin: 10px;
+      padding: 10px 20px;
+      font-size: 16px;
+      cursor: pointer;
+    }
+
+    canvas {
+      border: 2px solid #444;
+      margin-bottom: 10px;
+    }
+
+    #top-screen {
+      width: 400px;
+      height: 240px;
+      background: black;
+    }
+
+    #bottom-screen {
+      width: 320px;
+      height: 240px;
+      background: white;
+    }
+  </style>
+</head>
+<body>
+  <div id="container">
+    <!-- 上画面 -->
+    <canvas id="top-screen"></canvas>
+
+    <!-- 下画面 -->
+    <canvas id="bottom-screen"></canvas>
+  </div>
+
+  <!-- ボタン -->
+  <button onclick="openBrowser()">インターネットブラウザを開く</button>
+  <button onclick="openSDCardManager()">SDカード管理を開く</button>
+
+  <script>
+    // 仮想SDカードの初期化
+    let sdCardData = JSON.parse(localStorage.getItem("virtualSD")) || {
+      totalCapacity: 32 * 1024 * 1024 * 1024, // 32GB (バイト数)
+      usedSpace: 0, // 使用済み容量 (初期値は0)
+      files: ["Nintendo 3DS/"] // 初期フォルダ
+    };
+
+    // インターネットブラウザを開く
+    function openBrowser() {
+      const browserWindow = window.open("about:blank", "_blank", "width=800,height=600");
+      if (browserWindow) {
+        browserWindow.document.write(`
+          <html lang="ja">
+          <head>
+            <title>インターネットブラウザ</title>
+            <style>
+              body {
+                font-family: Arial, sans-serif;
+                margin: 0;
+                padding: 20px;
+              }
+              #toolbar {
+                background: #ccc;
+                padding: 10px;
+                position: sticky;
+                top: 0;
+                z-index: 10;
+              }
+              iframe {
+                border: none;
+                width: 100%;
+                height: calc(100vh - 60px);
+              }
+              button {
+                margin-right: 10px;
+              }
+            </style>
+          </head>
+          <body>
+            <div id="toolbar">
+              <button id="delete-cookies">Cookie削除</button>
+              <input id="url-input" type="text" placeholder="URLを入力..." style="width: 60%;" />
+              <button id="go-button">移動</button>
+            </div>
+            <iframe id="browser-frame" src="https://example.com"></iframe>
+            <script>
+              const iframe = document.getElementById("browser-frame");
+              const urlInput = document.getElementById("url-input");
+              const goButton = document.getElementById("go-button");
+              const deleteCookiesButton = document.getElementById("delete-cookies");
+
+              // URL入力欄の動作
+              goButton.addEventListener("click", () => {
+                const url = urlInput.value.startsWith("http") ? urlInput.value : "http://" + urlInput.value;
+                iframe.src = url;
+              });
+
+              // Cookie削除機能
+              deleteCookiesButton.addEventListener("click", () => {
+                document.cookie.split(";").forEach(cookie => {
+                  document.cookie = cookie.trim().split("=")[0] + "=;expires=Thu, 01 Jan 1970 00:00:00 UTC;path=/";
+                });
+                alert("Cookieを削除しました。");
+              });
+            </script>
+          </body>
+          </html>
+        `);
+      } else {
+        alert("ブラウザのポップアップを許可してください。");
+      }
+    }
+
+    // SDカード管理画面を開く
+    function openSDCardManager() {
+      const sdManagerWindow = window.open("about:blank", "_blank", "width=600,height=500");
+      if (sdManagerWindow) {
+        sdManagerWindow.document.write(`
+          <html lang="ja">
+          <head>
+            <title>SDカード管理</title>
+            <style>
+              body {
+                font-family: Arial, sans-serif;
+                margin: 20px;
+              }
+              ul {
+                list-style: none;
+                padding: 0;
+              }
+              li {
+                margin: 5px 0;
+                display: flex;
+                justify-content: space-between;
+              }
+              input {
+                width: 70%;
+              }
+              button {
+                margin-left: 10px;
+              }
+              #info {
+                margin-bottom: 10px;
+                font-size: 14px;
+              }
+            </style>
+          </head>
+          <body>
+            <h1>SDカード管理</h1>
+            <div id="info">
+              総容量: ${(sdCardData.totalCapacity / (1024 * 1024 * 1024)).toFixed(2)}GB / 使用容量: ${(sdCardData.usedSpace / (1024 * 1024)).toFixed(2)}MB
+            </div>
+            <ul id="file-list"></ul>
+            <input id="new-file" type="text" placeholder="新しいファイル/フォルダ名を入力..." />
+            <button id="add-file">追加</button>
+            <button id="save-changes">保存して閉じる</button>
+            <script>
+              const fileList = document.getElementById("file-list");
+              const newFileInput = document.getElementById("new-file");
+              const addFileButton = document.getElementById("add-file");
+              const saveButton = document.getElementById("save-changes");
+              const info = document.getElementById("info");
+
+              const sdCardData = ${JSON.stringify(sdCardData)};
+
+              function refreshFileList() {
+                fileList.innerHTML = "";
+                sdCardData.files.forEach((file, index) => {
+                  const li = document.createElement("li");
+                  li.innerHTML = \`
+                    <span>\${file}</span>
+                    <button onclick="deleteFile(\${index})">削除</button>
+                  \`;
+                  fileList.appendChild(li);
+                });
+                updateInfo();
+              }
+
+              function updateInfo() {
+                info.textContent = \`総容量: \${(sdCardData.totalCapacity / (1024 * 1024 * 1024)).toFixed(2)}GB / 使用容量: \${(sdCardData.usedSpace / (1024 * 1024)).toFixed(2)}MB\`;
+              }
+
+              function deleteFile(index) {
+                const fileSize = sdCardData.files[index].length * 2;
+                sdCardData.usedSpace -= fileSize;
+                sdCardData.files.splice(index, 1);
+                refreshFileList();
+              }
+
+              addFileButton.addEventListener("click", () => {
+                const fileName = newFileInput.value.trim();
+                if (fileName && !sdCardData.files.includes(fileName)) {
+                  const fileSize = fileName.length * 2;
+                  if (sdCardData.usedSpace + fileSize <= sdCardData.totalCapacity) {
+                    sdCardData.files.push(fileName);
+                    sdCardData.usedSpace += fileSize;
+                    newFileInput.value = "";
+                    refreshFileList();
+                  } else {
+                    alert("容量が不足しています！");
+                  }
+                }
+              });
+
+              saveButton.addEventListener("click", () => {
+                localStorage.setItem("virtualSD", JSON.stringify(sdCardData));
+                alert("変更が保存されました。");
+                window.close();
+              });
+
+              refreshFileList();
+            </script>
+          </body>
+          </html>
+        `);
+      } else {
+        alert("ブラウザのポップアップを許可してください。");
+      }
+    }
+  </script>
+</body>
+</html>
